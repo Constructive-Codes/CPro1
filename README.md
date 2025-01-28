@@ -4,10 +4,7 @@ This repository has the code and the results for "Using Code Generation to Solve
 
 **designs/** has the solutions to open instances, along with the code that generated them.
 
-**code/** has the code and documentation for running CPro1.
-
-
-
+**CPro1/** has the code and documentation for running CPro1.
 
 
 
