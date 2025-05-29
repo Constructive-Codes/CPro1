@@ -2,6 +2,7 @@
 import re
 import subprocess
 import sys
+import random
 from pathlib import Path
 from typing import Any # to support clients from various providers
 import time
@@ -21,19 +22,21 @@ def connectmodel() -> Any:
         return anthropic.Anthropic(api_key=conf.API_KEY)
     if conf.PROVIDER=="DEEPSEEK":
         from openai import OpenAI
-        return OpenAI(api_key=conf.API_KEY,base_url="https://api.deepseek.com")
+        return OpenAI(api_key=conf.API_KEY,base_url="https://api.deepseek.com",timeout=conf.TIMEOUT)
     if conf.PROVIDER=="DEEPINFRA":
         from openai import OpenAI
         return OpenAI(api_key=conf.API_KEY,base_url="https://api.deepinfra.com/v1/openai")
     if conf.PROVIDER=="OLLAMA":
         from openai import OpenAI
-        return OpenAI(api_key=conf.API_KEY,base_url="http://localhost:11434/v1")        
+        return OpenAI(api_key=conf.API_KEY,base_url="http://localhost:11434/v1",timeout=conf.TIMEOUT)        
     return None
 
 
 def addmessage(m: list[dict],role: str,newmsg: str) -> list[dict]:
     """Append newmsg with role to the sequence of messages m, using the format required by conf.PROVIDER."""
     if conf.PROVIDER in ("OPENAI","ANTHROPIC"):
+        if conf.PROVIDER=="OPENAI" and m==[] and conf.REASONING:
+            m = m + [{"role": "developer", "content": [{"type": "text", "text": "Formatting re-enabled"}]}]
         return m + [{"role": role, "content": [{"type": "text", "text": newmsg}]}]
     # otherwise, conf.PROVIDER=="MISTRAL" or conf.PROVIDER=="DEEPSEEK" or conf.PROVIDER=="DEEPINFRA":
     return m + [{"role": role, "content": newmsg}]
@@ -54,31 +57,39 @@ def runprompt(m: list[dict],t: float,tp: float,client: Any) -> str:
     while numretries<conf.MAX_RETRIES:
         try:
             if conf.PROVIDER=="OPENAI":
-                if conf.MODEL=="o1-mini-2024-09-12":
-                    response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,top_p=tp,frequency_penalty=0,presence_penalty=0) # no max_tokens
+                if conf.REASONING:
+                    response = client.chat.completions.create(model=conf.MODEL,reasoning_effort=conf.REASONING_EFFORT,messages=m) # no max_tokens - for supporting reasoning models (with effort "high")
                 else:
-                    response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=3000,top_p=tp,frequency_penalty=0,presence_penalty=0)
+                    response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=conf.MAX_TOKENS,top_p=tp,frequency_penalty=0,presence_penalty=0)
                 return response.choices[0].message.content
             if conf.PROVIDER=="MISTRAL":
-                response = client.chat.complete(model=conf.MODEL,messages=m,temperature=t,max_tokens=3000)
+                response = client.chat.complete(model=conf.MODEL,messages=m,temperature=t,max_tokens=conf.MAX_TOKENS)
                 return response.choices[0].message.content
             if conf.PROVIDER=="ANTHROPIC":
-                response = client.messages.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=3000)
+                response = client.messages.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=conf.MAX_TOKENS)
                 return response.content[0].text
             if conf.PROVIDER=="DEEPSEEK":
-                response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=3000)
+                if conf.REASONING:
+                    response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t)
+                else:
+                    response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=conf.MAX_TOKENS)
                 return response.choices[0].message.content
             if conf.PROVIDER=="DEEPINFRA":
-                response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=3000,stream=False)
+                response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=conf.MAX_TOKENS,stream=False)
                 return response.choices[0].message.content
             if conf.PROVIDER=="OLLAMA":
-                response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=3000)
-                return response.choices[0].message.content                
+                if conf.REASONING:
+                    response = client.chat.completions.create(model=conf.MODEL,messages=m) # use Ollama default temperature etc.
+                    responsestring = response.choices[0].message.content
+                    return responsestring.split("</think>")[-1].lstrip()  # remove reasoning portion of the content
+                else:
+                    response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=conf.MAX_TOKENS)
+                    return response.choices[0].message.content                
         except Exception as e:
             print(f"NOTICE: API FAILURE - retrying after {retrywait} seconds - exception: {e}")
             sys.stdout.flush()
-            time.sleep(retrywait)
-            retrywait = retrywait * 2
+            time.sleep(random.randint(retrywait//2,retrywait))
+            retrywait = int(retrywait * conf.RETRY_WAIT_MULTIPLIER)
             numretries += 1
     print("ERROR: API FAILURE - no more retries")
     sys.stdout.flush()

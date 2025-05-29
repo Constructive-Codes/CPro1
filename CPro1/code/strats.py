@@ -76,8 +76,21 @@ def get_programs(smallparams: list[int],openparams: list[int],c: candidate.Candi
                     if isinstance(h['min'],(int,float)) and isinstance(h['max'],(int,float)) and isinstance(h['default'],(int,float)):
                         hyperparams = hyperparams + [[h['name'],h['min'],h['max'],h['default']]]
             except:
-                # print("NOTICE: hyperparameter parsing exception")
-                pass
+                try:
+                    # list is sometimes formatted without commas or enclosing square brackets
+                    lines = j.split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        if not line:
+                            continue # skip empty lines
+                        lineparsed = json.loads(line)
+                        if not isinstance(lineparsed,list):
+                            lineparsed = [lineparsed]
+                        for h in lineparsed:
+                            if isinstance(h['min'],(int,float)) and isinstance(h['max'],(int,float)) and isinstance(h['default'],(int,float)):
+                                hyperparams = hyperparams + [[h['name'],h['min'],h['max'],h['default']]]
+                except:
+                    print("NOTICE: hyperparameter parsing exception")
     c.progtext = program
     c.parm_ranges = hyperparams
     return c
@@ -104,10 +117,10 @@ def get_detailsprograms(smallparams: list[int],openparams: list[int],strategies:
             candidates = pool.starmap(get_programs,programjobs)
 
     for c in candidates:
-        print(f"details prompt: {utils.getmessage(c.message_seq[0])}\n")
-        print(f"details result: {utils.getmessage(c.message_seq[1])}\n")
-        print(f"program prompt: {utils.getmessage(c.message_seq[2])}\n")
-        print(f"program result: {utils.getmessage(c.message_seq[3])}\n")
+        print(f"details prompt: {utils.getmessage(c.message_seq[-4])}\n")  # use this indexing so that if there is a system/developer message initially we'll still print the right stuff.
+        print(f"details result: {utils.getmessage(c.message_seq[-3])}\n")
+        print(f"program prompt: {utils.getmessage(c.message_seq[-2])}\n")
+        print(f"program result: {utils.getmessage(c.message_seq[-1])}\n")
         if c.progtext=="":
             print("NOTICE: program not found")
         else:

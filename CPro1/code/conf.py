@@ -20,13 +20,24 @@ if not MODEL:
     raise ValueError("MODEL is not set in environment variables.")
 
 SEQUENTIAL = False # False = prompt in parallel for details and candidate programs, True = prompt sequentially (e.g. for local models)
-SEC_PER_REQ = 2 # limit SEQUENTIAL requests per second - pause SEC_PER_REQ seconds between initiating requests
+SEC_PER_REQ = 2 # limit non-SEQUENTIAL requests per second - pause SEC_PER_REQ seconds between initiating requests
 if PROVIDER=="OLLAMA":
     SEQUENTIAL = True
     SEC_PER_REQ = 0
+REASONING = False
+REASONING_EFFORT = ""
+if PROVIDER=="OPENAI" and MODEL[0]=="o": # heuristic check for OPENAI reasoning models
+    REASONING = True
+    REASONING_EFFORT = "high"
+if PROVIDER=="DEEPSEEK" and ("reasoner" in MODEL): # heuristic check for DEEPSEEK reasoning models
+    REASONING = True
+if PROVIDER=="OLLAMA" and (("deepseek-r1" in MODEL) or ("qwen3" in MODEL) or ("qwq" in MODEL)):
+    REASONING = True
 
-INITIAL_RETRY_WAIT = 10 # #seconds to wait for API retry
-MAX_RETRIES = 12 # max number of retries, doubling each time.  This is enough to get through a multi-hour outage.
+TIMEOUT = 10000 # seconds to wait for LLM response - applies to PROVIDERs OLLAMA and DEEPSEEK which can be too slow for default 10-minute timeout in the OpenAI library    
+INITIAL_RETRY_WAIT = 20 # #seconds to wait for API retry
+RETRY_WAIT_MULTIPLIER = 1.5
+MAX_RETRIES = 20 # max number of retries, doubling each time.  This is enough to get through a multi-hour outage.
 
 LANGUAGE = "C" # Language for code generation.  Currently only "C" is supported.
 
@@ -61,6 +72,7 @@ STRAT_TEMP = 1.0 # temperature when listing strategy
 DETAILS_TEMP = 1.0 # temperature when filling in strategy details
 PROG_TEMP = 1.0  # temperature when creating code
 TOP_P = 1.0  # constant across applications
+MAX_TOKENS = 3000 # applies only to non-reasoning models
 
 RUN_LABEL_NUM = "1" # global label for this entire execution
 INIT_RUN_NUM = 1000 # Start for sequentially labelling code files and temporary directories.
@@ -72,6 +84,6 @@ MEM_LIMIT = 3 # memory limit per process, in GB.  Integers only.  Should be less
 # Use value "None" for ablation tests.
 RUN_STAGES = {"strategies": True,  # True = start run from scratch, gathering strategies and details and candidate code.  False = read from existing candidates*pkl
               "hypertune": True,  # True = hyperparameter tuning active.  False = read from existing hyperresults*pkl.  None = ablated - read preexisting hyperresults*.pkl and update it as if SHORTFLAG had been true.
-              "prog_opt_prompt_eval": True,  # True = generate and test optimization candidates.  False = read from existing optresults*.pkl.  None = ablated; skip optimization.
+              "prog_opt_prompt_eval": True, # True = generate and test optimization candidates.  False = read from existing optresults*.pkl.  None = ablated; skip optimization.
               "full_dev_set": True,  # True = test for FULL_DEV_TIME on NUM_SELECT final candidates.  False = read from existing fullresults*.pkl.  None = ablated; skip and go with existing short timings.
               "open_problems": True} # should always be True

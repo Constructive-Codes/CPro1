@@ -4,41 +4,58 @@
 
 - Access to a suitable large language model (LLM).  This can be either:
   - API access, with an API key from one of these providers: OpenAI, Anthropic, Mistral, DeepSeek, DeepInfra.
-    - Note that (as of January 2025) Mistral offers a [free tier](https://help.mistral.ai/en/articles/225174-what-are-the-limits-of-the-free-tier) that is suitable for running experiments.
-  - Or a local model, using Ollama.  Note CPro1 makes a lot of LLM calls, so you'll want a good GPU that runs your local model quickly.
-- A system running Linux (experiments in the paper used Ubuntu 24.04)
-  - At least 16 cores with 32 threads, and 128GB memory, to run the experiments as they were run in the paper.
+  - Or a local model, using Ollama.  Note CPro1 makes a lot of LLM calls, so you'll probably want a good GPU that runs your local model quickly.
+  - Reasoning models: CPro1 currently works with OpenAI reasoning models (o3-mini, o4-mini, etc.); DeepSeek R1 via DeepSeek's API; and local R1, Qwen3, and QwQ models via Ollama.
+- A system running Linux (experiments in the papers used Ubuntu 24.04)
+  - At least 16 cores with 32 threads, and 128GB memory, to run the experiments as they were run in the papers.
   - Smaller systems can also work with appropriate configuration (see section "More configuration options" below)
 - These tools needs to be installed:
-  - Python (experiments in the paper used Python 3.12.3)
-  - gcc (experiments in the paper used version 13.3.0)
-  - firejail (experiments in the paper used version 0.9.72) - this is for sandboxing the execution of LLM-generated C code.
-  - A Python package for supporting your LLM provider:
-    - If using Ollama locally, or OpenAI, DeepSeek, or DeepInfra: **pip install openai** (or on Ubuntu, **apt-get install python3-openai** works well)
-    - If using Mistral: **pip install mistralai**
-    - If using Anthropic: **pip install anthropic**
-    Note that pip install details (e.g. use of pip3, need for virtual environment) will depend on the details of your system.
-- You'll need to be patient.  A single run with the default configuration takes about a week, even with a fast LLM.
+  - Python (experiments in the papers used Python 3.12.3)
+  - gcc (experiments in the papers used version 13.3.0)
+  - firejail (experiments in the papers used version 0.9.72) - this is for sandboxing the execution of LLM-generated C code.  On Ubuntu you can install with `sudo apt-get install firejail`.
+  - Python support for LLM providers.  You can install the required packages with:
+```bash
+pip install -r requirements.txt
+```
+If you need to run in a virtual environment (recommended), you can do this with:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+then run as described below.
+- You'll need to be patient.  A single run with the default configuration takes about 6-10 days, even with a fast LLM.
 
 ## Configure environment variables appropriate to your LLM provider
 
 ### API providers:
-- Configure your provider: **export PROVIDER="pname"** where pname is one of: OPENAI,MISTRAL,ANTHROPIC,DEEPSEEK,DEEPINFRA
-- Set up your API key that you obtained from this provider: **export API_KEY="..."**
-- Choose your model, with the name specified by the provider: **export MODEL="...model-name..."** (e.g. the main runs from the paper used provider OPENAI and MODEL="gpt-4o-2024-05-13")
+- Configure your provider: `export PROVIDER="pname"` where pname is one of: OPENAI,MISTRAL,ANTHROPIC,DEEPSEEK,DEEPINFRA
+- Set up your API key that you obtained from this provider: `export API_KEY="..."`
+- Choose your model, with the name specified by the provider: `export MODEL="...model-name..."` (e.g. MODEL="gpt-4o-2024-05-13")
 ### Ollama:
-- **export PROVIDER="OLLAMA"**
-- **export API_KEY="ollama"**
-- **export MODEL="...ollama-model-name-that-you-have-installed..."**
+- `export PROVIDER="OLLAMA"`
+- `export API_KEY="ollama"`
+- `export MODEL="...ollama-model-name-that-you-have-installed..."`
 - The code assumes that Ollama is running with your model available at http://localhost:11434/v1 - if this URL is not correct for your configuration, you can edit it in utils.py
+- Note that Ollama-supplied models can come configured with a context length (e.g. 2048) that is too short for usage with CPro1.  One way to fix this is to create a custom model file.  For example, if you want to use qwen3:30b you can do `ollama show --modelfile qwen3:30b > Modelfile`, then edit Modelfile and after the FROM line add these two lines:
+```
+PARAMETER num_ctx 40960
+PARAMETER num_predict 32768
+```
+Then save it and do `ollama create qwen3-30b-ctx40k -f Modelfile`.  You can then use your new qwen3-30b-ctx40k as the MODEL.
+- If you need your Ollama model to be detected by the code as a reasoning model, the MODEL must contain one of the strings "qwen3", "qwq", or "deepseek-r1".  See "REASONING" below for more information.
+- For reasoning models, CPro1 will use LLM parameters (temperature, etc.) as configured in Ollama.
 
-## Running an experiment from the paper
+## Running an experiment from the papers
 
 - Create a directory (say it is called "dir") and copy the code from code/*py into it.
 - Select from design_definitions the problem_def.py corresponding to the experiment you want to run (e.g. design_definitions/packing-array/problem_def.py for Packing Arrays) and copy it into "dir".
-- In "dir", run orch.py - for example: python orch.py \> log 2\> errlog \& 
+- In "dir", run orch.py - for example:
+```bash
+python orch.py > log 2> errlog &
+```
   - Substitute whatever you usually use to run Python (e.g. "python3") for the "python" above.
-  - Note this will run for about a week (or potentially longer, depending on LLM speed).
+  - Note this will run for about 6-10 days (or potentially longer, depending on LLM speed).
 - You can monitor the progress in several ways:
   - View the log.  When the run starts, it may take a little while (minutes, or even an hour or more depending entirely on LLM response times) for anything to appear in the log.
   - The errlog will also have information - mostly compiler errors and warnings from gcc for generated code that you can ignore, but if orch.py crashes it may have useful information about the error.
@@ -79,7 +96,7 @@
   - If fullresults*.pkl is present, set **"full_dev_set": False**.  At this point, it will only run the NUM_FINAL candidates on the OPEN_INSTANCES.
 - It can also be useful to restart from a *.pkl checkpoint after e.g. changing configuration.  For example, to run on different OPEN_INSTANCES, set everything up to and including "full_dev_set" to False, configure your desired OPEN_INSTANCES, and restart.
 - When restarting:
-  - Use a new log file so you don't lose the old ones - e.g. python orch.py \> log2 2\> errlog2 \&
+  - Use a new log file so you don't lose the old ones - e.g. `python orch.py > log2 2> errlog2 &`
   - The prog\*X.c and tmpdirprog\*X from the original run will be overwritten, so make a copy of these somewhere if you want to keep them.
 
 ## More configuration options
@@ -87,32 +104,48 @@
 conf.py has additional configuration options.
 
 The main ones you might want to edit:
-- **NUM_PROCESSES = 32**: the number of tests to run in parallel for a candidate.  32 is the right value to rerun experiments from the paper.  But if you have fewer than 32 hardware threads, you may want to try smaller values.  Then you will be restricted in how many DEV_INSTANCES and OPEN_INSTANCES you can run, and you will run fewer seeds per instance since the number of seeds is chosen so that #seeds * #instances <= NUM_PROCESSES.
-- **MEM_LIMIT = 3**: This is in GB, per each of NUM_PROCESSES.  So NUM_PROCESSES\*MEM_LIMIT should be under your available memory size - 3\*32=96GB seems to work well for a system with 128GB memory.  Some buggy C code generated by LLMs can rapidly allocate massive amounts of memory, and if MEM_LIMIT isn't low enough then firejail may not kill it in time, leading to the Linux OOM Killer being invoked which can ruin the run.
-- **STRATEGY_REPS = 50** : the total number of candidates is NUM_STRATEGES\*STRATEGY_REPS=1000.  You can do smaller or larger runs by changing STRATEGY_REPS.
-- **FULL_OPEN_TIME = 172800**: Each of the top **NUM_FINAL** (=2) candidates is run for this many seconds (48 hours) on the OPEN_INSTANCES - so of the approximately 1-week run, 4 days of it are long runs on the OPEN_INSTANCES.  Shorter times (e.g. 7200; 2 hours) are sometimes enough to get initial results.
-- **BASE_SEED = 1000**: If you want to restart from a checkpoint to to try your NUM_FINAL candidates on the OPEN_INSTANCES with more random seeds, you can set this to a different value (e.g. 10000, 20000, ...) to do the additional runs with different seeds.
-- **NUM_SELECT = 5**, **NUM_FINAL = 2**: NUM_SELECT candidates proceed to optimization and testing for FULL_DEV_TIME, and then the top NUM_FINAL proceed to testing on OPEN_INSTANCES.
+- `NUM_PROCESSES = 32`: the number of tests to run in parallel for a candidate.  32 is the right value to rerun experiments from the paper.  But if you have fewer than 32 hardware threads, you may want to try smaller values.  Then you will be restricted in how many DEV_INSTANCES and OPEN_INSTANCES you can run, and you will run fewer seeds per instance since the number of seeds is chosen so that #seeds * #instances <= NUM_PROCESSES.
+- `MEM_LIMIT = 3`: This is in GB, per each of NUM_PROCESSES.  So NUM_PROCESSES\*MEM_LIMIT should be under your available memory size - 3\*32=96GB seems to work well for a system with 128GB memory.  Some buggy C code generated by LLMs can rapidly allocate massive amounts of memory, and if MEM_LIMIT isn't low enough then firejail may not kill it in time, leading to the Linux OOM Killer being invoked which can ruin the run.
+- `STRATEGY_REPS = 50` : the total number of candidates is NUM_STRATEGES\*STRATEGY_REPS=1000.  You can do smaller or larger runs by changing STRATEGY_REPS.
+- `FULL_OPEN_TIME = 172800`: Each of the top NUM_FINAL (=2) candidates is run for this many seconds (48 hours) on the OPEN_INSTANCES - so of the approximately 1-week run, 4 days of it are long runs on the OPEN_INSTANCES.  Shorter times (e.g. 7200; 2 hours) are sometimes enough to get initial results.
+- `BASE_SEED = 1000`: If you want to restart from a checkpoint to to try your NUM_FINAL candidates on the OPEN_INSTANCES with more random seeds, you can set this to a different value (e.g. 10000, 20000, ...) to do the additional runs with different seeds.
+- `NUM_SELECT = 5` and `NUM_FINAL = 2`: NUM_SELECT candidates proceed to optimization and testing for FULL_DEV_TIME, and then the top NUM_FINAL proceed to testing on OPEN_INSTANCES.
 
 Additional configuration options you could want to edit if you get into the details.
 
-- **FULL_DEV_TIME = 7200**: each of **NUM_SELECT** candidates is tested on the DEV_INSTANCES for this many seconds.
-- **OPT_ROUNDS = 5**, **OPT_TRIES = 50**: optimization generates and tests OPT_TRIES candidates, and then repeats (up to OPT_ROUNDS, though this limit isn't often reached) as long as there is at least MIN_IMPROVE improvement in the score.  Increasing OPT_TRIES could improve optimization results.
-- **STRAT_TEMP = 1.0**, **DETAILS_TEMP = 1.0**, **PROG_TEMP = 1.0**.  Temperature is the key LLM parameter.  1.0 might be considered a little high, but we're trying to encourage diverse candidates.  It could make sense to experiment with this, or change it for an LLM that has different requirements.
-- **STRATEGY_REPS = 20**: prompt the LLM for lists of this many strategies. 
-- **INITHYPERTUNETIME = 0.5**: hyperparameter tuning starts with short 0.5 second runs.  They probably can't really get much shorter than this, since overhead of starting them and stopping them eats up a little time.
-- **GRIDSIZE = 1000**, **F = 10**: start  hyperparameter tuning with GRIDSIZE, and each round increase time by a factor of F and decrease grid size by a factor of F. 
+- `FULL_DEV_TIME = 7200`: each of NUM_SELECT candidates is tested on the DEV_INSTANCES for this many seconds.
+- `OPT_ROUNDS = 5` and `OPT_TRIES = 50`: optimization generates and tests OPT_TRIES candidates, and then repeats (up to OPT_ROUNDS, though this limit isn't often reached) as long as there is at least MIN_IMPROVE improvement in the score.  Increasing OPT_TRIES could improve optimization results.
+- `STRAT_TEMP = 1.0` and `DETAILS_TEMP = 1.0` and PROG_TEMP = 1.0`.  These set the temperature LLM paramater.  Note these are only used for non-reasoning LLMs.  
+- `STRATEGY_REPS = 20`: prompt the LLM for lists of this many strategies. 
+- `INITHYPERTUNETIME = 0.5`: hyperparameter tuning starts with short 0.5 second runs.  They probably can't really get much shorter than this, since overhead of starting them and stopping them eats up a little time.
+- `GRIDSIZE = 1000` and `F = 10`: start  hyperparameter tuning with GRIDSIZE, and each round increase time by a factor of F and decrease grid size by a factor of F.
+- `REASONING` is set automatically in conf.py based on model name.  If this doesn't guess correctly for the model you want to use, you may need to set it manually (or add your model name to othe logic in conf.py).
 
 ## Ablation
 
 To take a pre-existing completed run with a full set of *.pkl files and run ablation tests as described in the paper:
-- Set **"strategies": False** - don't regenerate the candidates.
-- For "Reduce runtime", set **FULL_OPEN_TIME = 7200**, **"hypertune": False**, **"prog_opt_prompt_eval": False**, **"full_dev_set": False**
-- For "No final dev test", set **FULL_OPEN_TIME = 7200**, **"hypertune": False**, **"prog_opt_prompt_eval": False**, **"full_dev_set": None**
-- For "No optimization", set **FULL_OPEN_TIME = 7200**, **"hypertune": False**, **"prog_opt_prompt_eval": None**, **"full_dev_set": None**
-- For "No hyper tuning"", set **FULL_OPEN_TIME = 7200**, **"hypertune": None**, **"prog_opt_prompt_eval": None**, **"full_dev_set": None**
-
-
-
-
-
+- Set `"strategies": False` - don't regenerate the candidates.
+- For **"Reduce runtime"**, set `FULL_OPEN_TIME = 7200` and
+```Python
+"hypertune": False
+"prog_opt_prompt_eval": False
+"full_dev_set": False
+```
+- For **"No final dev test"**, set `FULL_OPEN_TIME = 7200` and
+```Python
+"hypertune": False
+"prog_opt_prompt_eval": False
+"full_dev_set": None
+```
+- For **"No optimization"**, set `FULL_OPEN_TIME = 7200` and
+```Python
+"hypertune": False
+"prog_opt_prompt_eval": None
+"full_dev_set": None
+```
+- For **"No hyper tuning"**, set `FULL_OPEN_TIME = 7200` and
+```Python
+"hypertune": None
+"prog_opt_prompt_eval": None
+"full_dev_set": None
+```
