@@ -5,7 +5,7 @@
 - Access to a suitable large language model (LLM).  This can be either:
   - API access, with an API key from one of these providers: OpenAI, Anthropic, Mistral, DeepSeek, DeepInfra.
   - Or a local model, using Ollama.  Note CPro1 makes a lot of LLM calls, so you'll probably want a good GPU that runs your local model quickly.
-  - Reasoning models: CPro1 currently works with OpenAI reasoning models (o3-mini, o4-mini, etc.); DeepSeek R1 via DeepSeek's API; and local R1, Qwen3, and QwQ models via Ollama.
+- If you want to use reasoning models: CPro1 currently works with OpenAI reasoning models (o3-mini, o4-mini, etc.); DeepSeek R1 via DeepSeek's API; and local R1, Qwen3, and QwQ models via Ollama.
 - A system running Linux (experiments in the papers used Ubuntu 24.04)
   - At least 16 cores with 32 threads, and 128GB memory, to run the experiments as they were run in the papers.
   - Smaller systems can also work with appropriate configuration (see section "More configuration options" below)
@@ -33,9 +33,11 @@ then run as described below.
 - Set up your API key that you obtained from this provider: `export API_KEY="..."`
 - Choose your model, with the name specified by the provider: `export MODEL="...model-name..."` (e.g. MODEL="gpt-4o-2024-05-13")
 ### Ollama:
-- `export PROVIDER="OLLAMA"`
-- `export API_KEY="ollama"`
-- `export MODEL="...ollama-model-name-that-you-have-installed..."`
+```bash
+export PROVIDER="OLLAMA"
+export API_KEY="ollama"
+export MODEL="...ollama-model-name-that-you-have-installed..."
+```
 - The code assumes that Ollama is running with your model available at http://localhost:11434/v1 - if this URL is not correct for your configuration, you can edit it in utils.py
 - Note that Ollama-supplied models can come configured with a context length (e.g. 2048) that is too short for usage with CPro1.  One way to fix this is to create a custom model file.  For example, if you want to use qwen3:30b you can do `ollama show --modelfile qwen3:30b > Modelfile`, then edit Modelfile and after the FROM line add these two lines:
 ```
@@ -52,10 +54,9 @@ Then save it and do `ollama create qwen3-30b-ctx40k -f Modelfile`.  You can then
 - Select from design_definitions the problem_def.py corresponding to the experiment you want to run (e.g. design_definitions/packing-array/problem_def.py for Packing Arrays) and copy it into "dir".
 - In "dir", run orch.py - for example:
 ```bash
-python orch.py > log 2> errlog &
+python3 orch.py > log 2> errlog &
 ```
-  - Substitute whatever you usually use to run Python (e.g. "python3") for the "python" above.
-  - Note this will run for about 6-10 days (or potentially longer, depending on LLM speed).
+- Note this will run for about 6-10 days (or potentially longer, depending on LLM speed).
 - You can monitor the progress in several ways:
   - View the log.  When the run starts, it may take a little while (minutes, or even an hour or more depending entirely on LLM response times) for anything to appear in the log.
   - The errlog will also have information - mostly compiler errors and warnings from gcc for generated code that you can ignore, but if orch.py crashes it may have useful information about the error.
@@ -96,7 +97,7 @@ python orch.py > log 2> errlog &
   - If fullresults*.pkl is present, set **"full_dev_set": False**.  At this point, it will only run the NUM_FINAL candidates on the OPEN_INSTANCES.
 - It can also be useful to restart from a *.pkl checkpoint after e.g. changing configuration.  For example, to run on different OPEN_INSTANCES, set everything up to and including "full_dev_set" to False, configure your desired OPEN_INSTANCES, and restart.
 - When restarting:
-  - Use a new log file so you don't lose the old ones - e.g. `python orch.py > log2 2> errlog2 &`
+  - Use a new log file so you don't lose the old ones - e.g. `python3 orch.py > log2 2> errlog2 &`
   - The prog\*X.c and tmpdirprog\*X from the original run will be overwritten, so make a copy of these somewhere if you want to keep them.
 
 ## More configuration options

@@ -1,0 +1,1 @@
+Note that problem_def.py has the OPEN_INSTANCES from the initial run, which yielded initial successful results.  After that, extension runs were done that included the open instances listed in Table 1 of the paper.
