@@ -14,6 +14,8 @@ def get_strategies(smallparams: list[int],openparams: list[int]) -> list[list[st
     """Prompt for strategies, using example parameters smallparams and openparams.  Return list of strategies, each with label and summary text."""
     client = utils.connectmodel()
     prompt = f"{problem_def.PROB_DEF}  Please suggest {conf.NUM_STRATEGIES} different approaches we could implement in {conf.LANGUAGE}.  "
+    if conf.PROMPT_NOVELTY:
+        prompt += f"This is a well-studied problem, and our goal is to go beyond known results, so each of your approaches needs to include a novel element.  "
     prompt += f"For now, just describe the approaches.  Then I will pick one of the approaches, and you will write the {conf.LANGUAGE} code to test it.  We will start testing on small parameters like {utils.paramtext(problem_def.PARAMS,smallparams)}, and then once those work we will proceed to larger parameters like {utils.paramtext(problem_def.PARAMS,openparams)}.  Format your list items like this example: \"12. **Strategy Name**: Sentences describing strategy, all on one line...\""
     print(f"strategies prompt: {prompt}\n")
     m = utils.addmessage([],"user",prompt)
@@ -38,7 +40,7 @@ def get_details(strat: str,strat_summary: str,jobnum: int) -> candidate.Candidat
     article = "a"
     if problem_def.FULL_PROB_NAME[0].lower() in 'aeiou':
         article = "an"
-    detailsprompt = f"{problem_def.PROB_DEF}\n\nWe have selected the following approach"
+    detailsprompt = f"{problem_def.PROB_DEF}\n\nWe have selected the following approach which we will implement in {conf.LANGUAGE}"
     detailsprompt += f":\n{c.strat}: {c.strat_summary} Do not terminate until a valid solution is found.\n\nDescribe the elements of this approach to constructing {article} {problem_def.FULL_PROB_NAME}.  Do not yet write code; just describe the details of the approach."
     c.message_seq = utils.addmessage([],"user",detailsprompt)
     detailsresult = utils.runprompt(c.message_seq,conf.DETAILS_TEMP,conf.TOP_P,myclient)
@@ -54,7 +56,10 @@ def get_programs(smallparams: list[int],openparams: list[int],c: candidate.Candi
     time.sleep(jobnum*conf.SEC_PER_REQ)
 
     programprompt = f"Now implement this approach in {conf.LANGUAGE}, following in detail the plan described above.  Provide the complete code.  The code should only print out the final {problem_def.FULL_PROB_NAME} once a valid solution is found.\n\n"
-    programprompt += f"I will be running the code from the Linux command line.  Please have the {conf.LANGUAGE} code take command-line parameters: {" ".join(problem_def.PARAMS)} seed (in that order), followed by additional parameters as needed which represent hyperparameters of your approach.  The seed is the random seed (if no random seed is needed, still accept this parameter but ignore it).\n\nAfter giving the complete code"
+    programprompt += f"I will be running the code from the Linux command line.  Please have the {conf.LANGUAGE} code take command-line parameters: {" ".join(problem_def.PARAMS)} seed (in that order), followed by "
+    if conf.PROMPT_NUM_HYPERPARAMETERS>0:
+        programprompt += f"up to {conf.PROMPT_NUM_HYPERPARAMETERS} "
+    programprompt += f"additional parameters as needed which represent hyperparameters of your approach.  The seed is the random seed (if no random seed is needed, still accept this parameter but ignore it).\n\nAfter giving the complete code"
     programprompt += ", for each hyperparameter that is an extra command-line parameter, provide a specification in JSON with fields \"name\",\"min\",\"max\",\"default\" specifying the name, minimum value, maximum value, and default value for the hyperparameter.  For example: {\"name\":\"gamma\", \"min\":0.0, \"max\":2.0, \"default\":0.5}.  If no hyperparameters are required then just state \"No Hyperparameters Required\""
     programprompt += f" after giving the complete code.  I will be using Linux timeout to set a time limit on execution of your program, and for challenging {problem_def.PROB_NAME} parameters this will be a long timeout (hours).  So to maximize chances of finding a solution your code should keep running indefinitely until it finds a valid solution.  Therefore, eliminate hyperparameters that would control termination, since your program needn't terminate until it succeeds.\n\nWe will start testing with small problem parameters like {utils.paramtext(problem_def.PARAMS,smallparams)}.  Once those work, we can then test further refinements and move towards larger problem parameters like {utils.paramtext(problem_def.PARAMS,openparams)}."
     c.message_seq = utils.addmessage(c.message_seq,"user",programprompt)
@@ -66,6 +71,13 @@ def get_programs(smallparams: list[int],openparams: list[int],c: candidate.Candi
         hyperparams: list = []
     else:
         hyperparamlist = re.findall(r'```json\s*(.+?)\s*```',programresult,flags=re.MULTILINE|re.DOTALL)
+        if not hyperparamlist:
+            hyperparamlist = re.findall(r'^.*```[^\`]*?(\[[^\`]+\])[^\`]*$',programresult,flags=re.DOTALL)
+        if not hyperparamlist:
+            hyperparamlist = re.findall(r'^.*```[^\`]*?(\{[^\`]+\})[^\`]*$',programresult,flags=re.DOTALL)
+        if not hyperparamlist:
+            hyperparamlist = re.findall(r'^.*\n\}(.*)$',programresult,flags=re.DOTALL)
+
         hyperparams = []
         for j in hyperparamlist:
             try:
@@ -83,12 +95,15 @@ def get_programs(smallparams: list[int],openparams: list[int],c: candidate.Candi
                         line = line.strip()
                         if not line:
                             continue # skip empty lines
-                        lineparsed = json.loads(line)
-                        if not isinstance(lineparsed,list):
-                            lineparsed = [lineparsed]
-                        for h in lineparsed:
-                            if isinstance(h['min'],(int,float)) and isinstance(h['max'],(int,float)) and isinstance(h['default'],(int,float)):
-                                hyperparams = hyperparams + [[h['name'],h['min'],h['max'],h['default']]]
+                        bracketlist = re.findall(r'(\{.*\})',line)
+                        if len(bracketlist)>0:
+                            line = bracketlist[0]
+                            lineparsed = json.loads(line)
+                            if not isinstance(lineparsed,list):
+                                lineparsed = [lineparsed]
+                            for h in lineparsed:
+                                if isinstance(h['min'],(int,float)) and isinstance(h['max'],(int,float)) and isinstance(h['default'],(int,float)):
+                                    hyperparams = hyperparams + [[h['name'],h['min'],h['max'],h['default']]]
                 except:
                     print("NOTICE: hyperparameter parsing exception")
     c.progtext = program

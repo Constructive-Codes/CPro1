@@ -111,6 +111,7 @@ The main ones you might want to edit:
 - `FULL_OPEN_TIME = 172800`: Each of the top NUM_FINAL (=2) candidates is run for this many seconds (48 hours) on the OPEN_INSTANCES - so of the approximately 1-week run, 4 days of it are long runs on the OPEN_INSTANCES.  Shorter times (e.g. 7200; 2 hours) are sometimes enough to get initial results.
 - `BASE_SEED = 1000`: If you want to restart from a checkpoint to to try your NUM_FINAL candidates on the OPEN_INSTANCES with more random seeds, you can set this to a different value (e.g. 10000, 20000, ...) to do the additional runs with different seeds.
 - `NUM_SELECT = 5` and `NUM_FINAL = 2`: NUM_SELECT candidates proceed to optimization and testing for FULL_DEV_TIME, and then the top NUM_FINAL proceed to testing on OPEN_INSTANCES.
+- `PROMPT_NOVELTY` may help with large runs on hard problems.  It adds to the initial strategy-listing prompt: "This is a well-studied problem, and our goal is to go beyond known results, so each of your approaches needs to include a novel element."
 
 Additional configuration options you could want to edit if you get into the details.
 
@@ -121,6 +122,8 @@ Additional configuration options you could want to edit if you get into the deta
 - `INITHYPERTUNETIME = 0.5`: hyperparameter tuning starts with short 0.5 second runs.  They probably can't really get much shorter than this, since overhead of starting them and stopping them eats up a little time.
 - `GRIDSIZE = 1000` and `F = 10`: start  hyperparameter tuning with GRIDSIZE, and each round increase time by a factor of F and decrease grid size by a factor of F.
 - `REASONING` is set automatically in conf.py based on model name.  If this doesn't guess correctly for the model you want to use, you may need to set it manually (or add your model name to othe logic in conf.py).
+- `FLEX` enables OpenAI's flex service tier
+- `PROMPT_NUM_HYPERPARAMETERS` prompts to limit the number of hyperparameters.  This seems necessary for GPT-5, which otherwise tends to add so many hyperparameters that hyperparameter tuning becomes infeasible.
 
 ## Ablation
 

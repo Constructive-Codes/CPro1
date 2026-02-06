@@ -58,7 +58,10 @@ def runprompt(m: list[dict],t: float,tp: float,client: Any) -> str:
         try:
             if conf.PROVIDER=="OPENAI":
                 if conf.REASONING:
-                    response = client.chat.completions.create(model=conf.MODEL,reasoning_effort=conf.REASONING_EFFORT,messages=m) # no max_tokens - for supporting reasoning models (with effort "high")
+                    if conf.FLEX:
+                        response = client.chat.completions.create(model=conf.MODEL,reasoning_effort=conf.REASONING_EFFORT,messages=m,service_tier="flex",timeout=conf.FLEX_TIMEOUT) # flex service tier
+                    else:
+                        response = client.chat.completions.create(model=conf.MODEL,reasoning_effort=conf.REASONING_EFFORT,messages=m) # no max_tokens - for supporting reasoning models (with effort "high")
                 else:
                     response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=conf.MAX_TOKENS,top_p=tp,frequency_penalty=0,presence_penalty=0)
                 return response.choices[0].message.content
@@ -139,10 +142,14 @@ def timingtext(timings: list[list],time_limit: float,paramnames: list[str]) -> s
 def extractprogram(result: str,language: str) -> str:
     """Given response result that may contain a program in language, use its formatting to extract the program."""
     programs = re.findall(r'```' + language.lower() + r'\s*(.+?)\s*```',result,flags=re.MULTILINE|re.DOTALL)
-    if len(programs)!=1:
+    if len(programs)==0:
         program = ""
+        if conf.LANGUAGE=="C": # even without the Markdown formatting, programs fairly reliable start with #include and end with } at start of line
+            programs = re.findall(r'(\#include.*^\}\s*)',result,flags=re.MULTILINE|re.DOTALL)
+            if len(programs)>0 and len(programs[0])>10:
+                program = programs[0]
     else:
-        program = programs[0]
+        program = programs[-1] # take last program.  If there are multiple, it is occasionally due to a revision in the response, so we want the last one.
     return program
 
 

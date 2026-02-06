@@ -26,9 +26,12 @@ if PROVIDER=="OLLAMA":
     SEC_PER_REQ = 0
 REASONING = False
 REASONING_EFFORT = ""
-if PROVIDER=="OPENAI" and MODEL[0]=="o": # heuristic check for OPENAI reasoning models
+FLEX = False
+if PROVIDER=="OPENAI" and ("gpt-4" not in MODEL): # Assume OPENAI models are reasoning, other than gpt-4 series.
     REASONING = True
     REASONING_EFFORT = "high"
+    # FLEX = True # Set to True for cost reduction (tradeoff for increased response time and potential timeouts)
+    FLEX_TIMEOUT = 1200
 if PROVIDER=="DEEPSEEK" and ("reasoner" in MODEL): # heuristic check for DEEPSEEK reasoning models
     REASONING = True
 if PROVIDER=="OLLAMA" and (("deepseek-r1" in MODEL) or ("qwen3" in MODEL) or ("qwq" in MODEL)):
@@ -53,6 +56,9 @@ SHORTFLAG = False # False fo full hypertuning, True to limit hyperparmaeters to 
 SEEDS = NUM_PROCESSES//len(problem_def.DEV_INSTANCES) # so that we can run SEEDS of each of DEV_INSTANCES in parallel and fit within NUM_PROCESSES
 if SEEDS<=0:
     raise ValueError("problem_def.DEV_INSTANCES must be <= conf.NUM_PROCESSES")
+
+PROMPT_NOVELTY = False # If True, add to the initial strategy-list prompt: "This is a well-studied problem, and our goal is to go beyond known results, so each of your approaches needs to include a novel element."
+PROMPT_NUM_HYPERPARAMETERS = 3 # Recommended value: 3.  If >0, add to the code prompt: "up to {conf.PROMPT_NUM_HYPERPARAMETERS} additional parameters as needed which represent hyperparameters of your approach".  If set <=0 it will omit "up to {conf.PROMPT_NUM_HYPERPARAMETERS}".  Note it only affects the prompting.
 
 NUM_STRATEGIES = 20 # Prompt to generate this many strategies each time.
 STRATEGY_REPS = 50 # will generate NUM_STRATEGIES*STRATEGY_REPS programs
