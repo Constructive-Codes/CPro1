@@ -32,12 +32,13 @@ if PROVIDER=="OPENAI" and ("gpt-4" not in MODEL): # Assume OPENAI models are rea
     REASONING_EFFORT = "high"
     # FLEX = True # Set to True for cost reduction (tradeoff for increased response time and potential timeouts)
     FLEX_TIMEOUT = 1200
-if PROVIDER=="DEEPSEEK" and ("reasoner" in MODEL): # heuristic check for DEEPSEEK reasoning models
-    REASONING = True
-if PROVIDER=="OLLAMA" and (("deepseek-r1" in MODEL) or ("qwen3" in MODEL) or ("qwq" in MODEL)):
-    REASONING = True
+if PROVIDER=="DEEPSEEK":
+    REASONING = True # assume
+if PROVIDER=="OLLAMA":
+    REASONING = True # assume
 
-TIMEOUT = 10000 # seconds to wait for LLM response - applies to PROVIDERs OLLAMA and DEEPSEEK which can be too slow for default 10-minute timeout in the OpenAI library    
+TIMEOUT = 10000 # seconds to wait for LLM response - applies to PROVIDERs OLLAMA and DEEPSEEK which can be too slow for default 10-minute timeout in the OpenAI library
+LONG_TIMEOUT = 10000
 INITIAL_RETRY_WAIT = 20 # #seconds to wait for API retry
 RETRY_WAIT_MULTIPLIER = 1.5
 MAX_RETRIES = 20 # max number of retries, doubling each time.  This is enough to get through a multi-hour outage.

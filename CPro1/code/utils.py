@@ -61,7 +61,7 @@ def runprompt(m: list[dict],t: float,tp: float,client: Any) -> str:
                     if conf.FLEX:
                         response = client.chat.completions.create(model=conf.MODEL,reasoning_effort=conf.REASONING_EFFORT,messages=m,service_tier="flex",timeout=conf.FLEX_TIMEOUT) # flex service tier
                     else:
-                        response = client.chat.completions.create(model=conf.MODEL,reasoning_effort=conf.REASONING_EFFORT,messages=m) # no max_tokens - for supporting reasoning models (with effort "high")
+                        response = client.chat.completions.create(model=conf.MODEL,reasoning_effort=conf.REASONING_EFFORT,messages=m,timeout=conf.LONG_TIMEOUT) # no max_tokens - for supporting reasoning models (with effort "high") # long timeout
                 else:
                     response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=conf.MAX_TOKENS,top_p=tp,frequency_penalty=0,presence_penalty=0)
                 return response.choices[0].message.content
@@ -73,7 +73,7 @@ def runprompt(m: list[dict],t: float,tp: float,client: Any) -> str:
                 return response.content[0].text
             if conf.PROVIDER=="DEEPSEEK":
                 if conf.REASONING:
-                    response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t)
+                    response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,timeout=conf.LONG_TIMEOUT)
                 else:
                     response = client.chat.completions.create(model=conf.MODEL,messages=m,temperature=t,max_tokens=conf.MAX_TOKENS)
                 return response.choices[0].message.content
@@ -82,7 +82,7 @@ def runprompt(m: list[dict],t: float,tp: float,client: Any) -> str:
                 return response.choices[0].message.content
             if conf.PROVIDER=="OLLAMA":
                 if conf.REASONING:
-                    response = client.chat.completions.create(model=conf.MODEL,messages=m) # use Ollama default temperature etc.
+                    response = client.chat.completions.create(model=conf.MODEL,messages=m,timeout=conf.LONG_TIMEOUT) # use Ollama default temperature etc.
                     responsestring = response.choices[0].message.content
                     return responsestring.split("</think>")[-1].lstrip()  # remove reasoning portion of the content
                 else:

@@ -44,6 +44,8 @@ def get_details(strat: str,strat_summary: str,jobnum: int) -> candidate.Candidat
     detailsprompt += f":\n{c.strat}: {c.strat_summary} Do not terminate until a valid solution is found.\n\nDescribe the elements of this approach to constructing {article} {problem_def.FULL_PROB_NAME}.  Do not yet write code; just describe the details of the approach."
     c.message_seq = utils.addmessage([],"user",detailsprompt)
     detailsresult = utils.runprompt(c.message_seq,conf.DETAILS_TEMP,conf.TOP_P,myclient)
+    print(f"got details for {c.strat}")
+    sys.stdout.flush()
     c.message_seq = utils.addmessage(c.message_seq,"assistant",detailsresult)
 
     return c
@@ -64,6 +66,8 @@ def get_programs(smallparams: list[int],openparams: list[int],c: candidate.Candi
     programprompt += f" after giving the complete code.  I will be using Linux timeout to set a time limit on execution of your program, and for challenging {problem_def.PROB_NAME} parameters this will be a long timeout (hours).  So to maximize chances of finding a solution your code should keep running indefinitely until it finds a valid solution.  Therefore, eliminate hyperparameters that would control termination, since your program needn't terminate until it succeeds.\n\nWe will start testing with small problem parameters like {utils.paramtext(problem_def.PARAMS,smallparams)}.  Once those work, we can then test further refinements and move towards larger problem parameters like {utils.paramtext(problem_def.PARAMS,openparams)}."
     c.message_seq = utils.addmessage(c.message_seq,"user",programprompt)
     programresult = utils.runprompt(c.message_seq,conf.PROG_TEMP,conf.TOP_P,myclient)
+    print(f"got program for {c.strat}")
+    sys.stdout.flush()
     c.message_seq = utils.addmessage(c.message_seq,"assistant",programresult)
 
     program = utils.extractprogram(programresult,conf.LANGUAGE)
